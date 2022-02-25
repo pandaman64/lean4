@@ -69,7 +69,7 @@ theorem div_lt: ∀x y, x > 0 → y > 1 → x / y < x := by {
 
 def PositionalNotation {base: Nat} {h: base > 1} := List (Fin base)
 def PositionalNotation.toNat {base: Nat} {h: base > 1}: @PositionalNotation base h → Nat :=
-  List.foldr (fun (digit: Fin base) (accum: Nat) => accum + base * digit) 0
+  List.foldr (fun (digit: Fin base) (accum: Nat) => digit + accum * base) 0
 
 def toPositionalNotation {base: Nat} {h: base > 1} (n: Nat): @PositionalNotation base h :=
   if isLt: n < base then
@@ -99,7 +99,7 @@ decreasing_by {
   . apply h;
 }
 
-theorem add_div_mod_eq: ∀x y: Nat, x = x / y * y + x % y := by {
+theorem add_div_mod_eq: ∀x y: Nat, x % y + x / y * y = x := by {
   intro x y;
   induction x, y using Nat.div.inductionOn with
   | ind x y prems ih => {
@@ -109,20 +109,8 @@ theorem add_div_mod_eq: ∀x y: Nat, x = x / y * y + x % y := by {
       apply Nat.add_mul;
     };
     simp;
-    rw [Nat.add_assoc];
-    conv in y + _ => {
-      apply Nat.add_comm;
-    };
-    rw [←Nat.add_assoc];
-    have ih': x - y + y = (x - y) / y * y + (x - y) % y + y := by {
-      conv => {
-        lhs;
-        rw [ih];
-      }
-    }
-    rw [Nat.sub_add_cancel] at ih';
-    . assumption;
-    . apply prems.right;
+    rw [←Nat.add_assoc, ih, Nat.sub_add_cancel];
+    exact prems.right;
   }
   | base x y prems => {
     rw [Nat.div_eq, Nat.mod_eq];
@@ -130,21 +118,39 @@ theorem add_div_mod_eq: ∀x y: Nat, x = x / y * y + x % y := by {
   };
 }
 
-theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat base h (toPositionalNotation n) = n := by {
+theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat base h (@toPositionalNotation base h n) = n := by {
   intro base h n;
-  let motive := fun n => @PositionalNotation.toNat base h (toPositionalNotation n) = n;
-  apply @WellFounded.induction _ _ (measure id).wf motive;
-  intro x y;
-  simp;
-  simp at y;
-  conv => {
-    lhs;
-    rhs;
-    -- このunfoldがループする
+  let P := fun x => @PositionalNotation.toNat base h (@toPositionalNotation base h x) = x;
+  have goal: P n := by {
+    apply Nat.lt_wfRel.wf.induction;
+    intro x ih;
     unfold toPositionalNotation;
+    match Nat.lt_or_ge x base with
+    | Or.inl x_lt_base => simp [x_lt_base, PositionalNotation.toNat, List.foldr];
+    | Or.inr x_gt_base => {
+      have not_x_lt_base: ¬(x < base) := by {
+        intro contra;
+        apply Nat.not_le_of_gt contra x_gt_base;
+      };
+      simp [not_x_lt_base, PositionalNotation.toNat, List.foldr];
+      have prev: @PositionalNotation.toNat base h (toPositionalNotation (x / base)) = x / base := by {
+        apply ih;
+        apply div_lt;
+        . {
+          apply @Nat.lt_of_lt_of_le _ base _;
+          . {
+            apply Nat.lt_trans;
+            . apply Nat.zero_lt_one;
+            . assumption;
+          }
+          . apply x_gt_base;
+        }
+        . assumption;
+      };
+      unfold PositionalNotation.toNat at prev;
+      rw [prev];
+      apply add_div_mod_eq;
+    }
   };
+  exact goal;
 }
-
-#print Nat.lt_wfRel
-#check WellFounded.fix (measure id).wf
-#print WellFounded.fix_eq
