@@ -118,8 +118,8 @@ theorem add_div_mod_eq: ∀x y: Nat, x % y + x / y * y = x := by {
   };
 }
 
-theorem unfoldPositionalNotationToNat:
-  ∀base, {h: base > 1} → ∀rem rest, @PositionalNotation.toNat base h (rem :: rest) = rem + @PositionalNotation.toNat base h rest * base := by {
+theorem unfoldPositionalNotationToNat: ∀base, {h: base > 1} →
+  ∀rem rest, @PositionalNotation.toNat base h (rem :: rest) = rem + @PositionalNotation.toNat base h rest * base := by {
     intro base h rem rest;
     simp [PositionalNotation.toNat, List.foldr];
   }
@@ -159,3 +159,108 @@ theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat ba
   };
   exact goal;
 }
+
+def PositionalNotation.sumDigits {base: Nat} {h: base > 1} (digits: @PositionalNotation base h): Nat :=
+  List.foldr (fun digit accum => digit.val + accum) 0 digits
+
+theorem unfoldPositionalNotationSumDigits: ∀base, {h: base > 1} →
+  ∀rem rest, @PositionalNotation.sumDigits base h (rem :: rest) = (rem + @PositionalNotation.sumDigits base h rest) := by {
+    intro base h rem rest;
+    simp [PositionalNotation.sumDigits, List.foldr];
+  }
+
+-- From mathlib4
+theorem add_mod_right (x z: Nat): (x + z) % z = x % z := by {
+  conv => {
+    rhs;
+    rw [←Nat.add_sub_cancel x z]
+  }
+  apply Nat.mod_eq_sub_mod;
+  apply Nat.le_add_left;
+}
+
+theorem add_mod_left (x z: Nat): (x + z) % x = z % x := by {
+  rw [Nat.add_comm, add_mod_right];
+}
+
+theorem add_mul_mod_self_left (x y z: Nat): (x + y * z) % y = x % y := by {
+  induction z with
+  | zero => simp;
+  | succ z ih => rw [Nat.mul_succ, ←Nat.add_assoc, add_mod_right, ih];
+}
+
+theorem add_mul_mod_self_right (x y z: Nat): (x + y * z) % z = x % z := by {
+  rw [Nat.mul_comm, add_mul_mod_self_left];
+}
+
+theorem mod_add_mod (m n k: Nat): (m % n + k) % n = (m + k) % n := by {
+  conv => {
+    rhs;
+    rw [←add_div_mod_eq m n, Nat.add_right_comm, add_mul_mod_self_right];
+  }
+}
+
+theorem add_mod_mod (m n k: Nat): (m + n % k) % k = (m + n) % k := by {
+  rw [Nat.add_comm, mod_add_mod, Nat.add_comm];
+}
+
+theorem add_mod (a b n: Nat): (a + b) % n = (a % n + b % n) % n := by {
+  rw [mod_add_mod, add_mod_mod];
+}
+
+-- For this theory
+theorem mod_add_left_cancel: ∀x n a b: Nat,
+  a % n = b % n →
+  (x + a) % n = (x + b) % n := by {
+    intro x n a b h;
+    rw [add_mod];
+    apply Eq.symm;
+    rw [add_mod];
+    rw [h];
+  }
+
+theorem mod_sub_1: ∀n, {h: n > 1} → n % (n - 1) = 1 % (n - 1) := by {
+  intro n h;
+  have expand: n = n - 1 + 1 := by {
+    apply Eq.symm;
+    apply Nat.sub_add_cancel;
+    apply Nat.le_of_lt h;
+  }
+  conv in n % (n - 1) => {
+    lhs;
+    rw [expand];
+  }
+  rw [add_mod_left];
+}
+
+theorem mul_mod_eq_mod: ∀x n, {h: n > 1} → x * n % (n - 1) = x % (n - 1) := by {
+  intro x n h;
+  induction x with
+  | zero => simp;
+  | succ x ih => {
+    conv => {
+      lhs;
+      rw [Nat.mul_comm, Nat.mul_succ, add_mod, Nat.mul_comm, ih];
+    }
+    conv => {
+      rhs;
+      rw [←Nat.add_one, add_mod];
+    };
+    rw [mod_sub_1];
+    assumption;
+  }
+}
+
+theorem PositionalNotation.mod_eq_mod_sum: ∀base, {h: base > 1} →
+  ∀digits, @PositionalNotation.toNat base h digits % (base - 1) = PositionalNotation.sumDigits digits % (base - 1) := by {
+    intro base h digits;
+    induction digits with
+    | nil => simp [PositionalNotation.toNat, PositionalNotation.sumDigits, List.foldr];
+    | cons rem rest ih => {
+      rw [unfoldPositionalNotationToNat, unfoldPositionalNotationSumDigits];
+      apply mod_add_left_cancel;
+      rw [mul_mod_eq_mod];
+      . exact ih;
+      . exact h;
+    }
+  }
