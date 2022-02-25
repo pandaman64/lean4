@@ -118,6 +118,12 @@ theorem add_div_mod_eq: ∀x y: Nat, x % y + x / y * y = x := by {
   };
 }
 
+theorem unfoldPositionalNotationToNat:
+  ∀base, {h: base > 1} → ∀rem rest, @PositionalNotation.toNat base h (rem :: rest) = rem + @PositionalNotation.toNat base h rest * base := by {
+    intro base h rem rest;
+    simp [PositionalNotation.toNat, List.foldr];
+  }
+
 theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat base h (@toPositionalNotation base h n) = n := by {
   intro base h n;
   let P := fun x => @PositionalNotation.toNat base h (@toPositionalNotation base h x) = x;
@@ -132,7 +138,7 @@ theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat ba
         intro contra;
         apply Nat.not_le_of_gt contra x_gt_base;
       };
-      simp [not_x_lt_base, PositionalNotation.toNat, List.foldr];
+      simp [not_x_lt_base, unfoldPositionalNotationToNat];
       have prev: P (x / base) := by {
         apply ih;
         apply div_lt;
@@ -147,8 +153,6 @@ theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat ba
         }
         . assumption;
       };
-      simp at prev;
-      unfold PositionalNotation.toNat at prev;
       rw [prev];
       apply add_div_mod_eq;
     }
