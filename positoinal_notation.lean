@@ -133,7 +133,7 @@ theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat ba
         apply Nat.not_le_of_gt contra x_gt_base;
       };
       simp [not_x_lt_base, PositionalNotation.toNat, List.foldr];
-      have prev: @PositionalNotation.toNat base h (toPositionalNotation (x / base)) = x / base := by {
+      have prev: P (x / base) := by {
         apply ih;
         apply div_lt;
         . {
@@ -147,6 +147,7 @@ theorem toPos_inv: ∀base, {h: base > 1} → ∀n, @PositionalNotation.toNat ba
         }
         . assumption;
       };
+      simp at prev;
       unfold PositionalNotation.toNat at prev;
       rw [prev];
       apply add_div_mod_eq;
